@@ -1,97 +1,91 @@
 import streamlit as st
 import whisper
 import os
+import numpy as np
+import noisereduce as nr
+from pydub import AudioSegment
 from deep_translator import GoogleTranslator
 from gtts import gTTS
 from tempfile import NamedTemporaryFile
 
-# -- UI & CUSTOM CSS --
+# -- 🎨 CUSTOM THEME --
 st.set_page_config(page_title="ORANGE Pocket Translator", page_icon="🍊")
-
-# This is where we "inject" the design
 st.markdown("""
     <style>
-    .stApp {
-        background-color: #f0f2f6; /* Light grey/blue background */
-    }
-    h1, h2, h3 {
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        color: #2e4053;
-    }
-    .stMarkdown {
-        font-family: 'Georgia', serif;
-    }
+    .stApp { background-color: #fdfefe; }
+    .stButton>button { background-color: #2e86c1; color: white; border-radius: 20px; }
+    h1 { color: #1b4f72; font-family: 'Roboto'; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🍊 ORANGE Pocket Translator")
 
-# Expanded Language Map
-LANG_MAP = {
-    "English": "en",
-    "Spanish": "es",
-    "French": "fr",
-    "German": "de",
-    "Japanese": "ja",
-    "Chinese": "zh-CN",
-    "Tagalog": "tl",
-    "Thai": "th",
-    "Vietnamese": "vi",
-    "Dutch": "nl",
-    "Icelandic": "is",
-    "Korean": "ko",
-    "Italian": "it"
-}
-
 @st.cache_resource
 def load_model():
-    return whisper.load_model("SMALL")
+    # 'small' is the highest we can go on free hosting safely!
+    return whisper.load_model("small")
 
 model = load_model()
 
-# -- Input Section --
-st.subheader("1. Provide Audio")
-tab1, tab2 = st.tabs(["🎤 Live Record", "📁 Upload File"])
+# -- 🎤 AUDIO CLEANER FUNCTION --
+def clean_audio(input_path):
+    audio = AudioSegment.from_file(input_path)
+    # Convert to numpy array for noise reduction
+    samples = np.array(audio.get_array_of_samples()).astype(np.float32)
+    # Reduce noise (stationary noise reduction)
+    reduced_noise = nr.reduce_noise(y=samples, sr=audio.frame_rate)
+    # Convert back to audio
+    cleaned_audio = audio._spawn(reduced_noise.astype(np.int16).tobytes())
+    cleaned_path = "cleaned_audio.wav"
+    cleaned_audio.export(cleaned_path, format="wav")
+    return cleaned_path
 
+# -- 1. INPUT --
+tab1, tab2 = st.tabs(["🎤 Live Mic", "📁 Upload"])
 audio_source = None
 with tab1:
-    mic_audio = st.audio_input("Record speech")
-    if mic_audio: audio_source = mic_audio
+    mic = st.audio_input("Tap to record")
+    if mic: audio_source = mic
 with tab2:
-    uploaded_audio = st.file_uploader("Upload audio file", type=["wav", "mp3", "m4a"])
-    if uploaded_audio: audio_source = uploaded_audio
+    up = st.file_uploader("Upload audio", type=["wav", "mp3", "m4a"])
+    if up: audio_source = up
 
-# -- Settings --
-st.subheader("2. Settings")
-target_lang_name = st.selectbox("Translate into:", list(LANG_MAP.keys()))
-target_lang_code = LANG_MAP[target_lang_name]
+# -- 2. SETTINGS --
+target_lang = st.selectbox("Translate to:", ["English", "Spanish", "Thai", "Vietnamese", "German", "Japanese"])
+lang_codes = {"English": "en", "Spanish": "es", "Thai": "th", "Vietnamese": "vi", "German": "de", "Japanese": "ja"}
 
-# -- Process --
+# -- 3. THE MAGIC --
 if audio_source:
-    if st.button("✨ Run Translation"):
-        with st.spinner("Processing..."):
+    if st.button("🚀 Translate with Noise Cleaning"):
+        with st.spinner("Scrubbing audio and translating..."):
             try:
-                suffix = ".wav" if not hasattr(audio_source, 'name') else os.path.splitext(audio_source.name)[1]
-                with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                # Save raw
+                with NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
                     tmp.write(audio_source.getvalue())
-                    tmp_path = tmp.name
+                    raw_path = tmp.name
 
-                rec_result = model.transcribe(tmp_path)
-                original_text = rec_result["text"]
+                # CLEAN THE AUDIO FIRST
+                processed_path = clean_audio(raw_path)
+
+                # TRANSLATE
+                result = model.transcribe(processed_path)
+                orig_text = result["text"]
                 
-                translated_text = GoogleTranslator(source='auto', target=target_lang_code).translate(original_text)
+                # FINAL POLISH (Deep Translator)
+                final_text = GoogleTranslator(source='auto', target=lang_codes[target_lang]).translate(orig_text)
 
-                tts = gTTS(text=translated_text, lang=target_lang_code)
-                tts_path = "speech.mp3"
-                tts.save(tts_path)
+                # VOICE OUTPUT
+                tts = gTTS(text=final_text, lang=lang_codes[target_lang])
+                tts.save("out.mp3")
 
-                st.success("Done!")
-                st.info(f"**Detected Original Text:**\n{original_text}")
-                st.warning(f"**{target_lang_name} Translation:**\n{translated_text}")
-                st.audio(tts_path)
+                # DISPLAY
+                st.success("Translation Ready!")
+                st.subheader(f"Results ({target_lang}):")
+                st.write(f"**What I heard:** {orig_text}")
+                st.write(f"**Translation:** {final_text}")
+                st.audio("out.mp3")
 
-                os.remove(tmp_path)
-                if os.path.exists(tts_path): os.remove(tts_path)
-
+                os.remove(raw_path)
+                os.remove(processed_path)
             except Exception as e:
                 st.error(f"Error: {e}")
