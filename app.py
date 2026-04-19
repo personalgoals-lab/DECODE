@@ -1,7 +1,7 @@
 import streamlit as st
 import whisper
 import os
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 from gtts import gTTS
 from tempfile import NamedTemporaryFile
 
@@ -9,14 +9,14 @@ from tempfile import NamedTemporaryFile
 st.set_page_config(page_title="Global Pocket Translator", page_icon="🌍")
 st.title("🌍 Global Pocket Translator")
 
-# Language Map (Add more if you like!)
+# Language Map for deep-translator
 LANG_MAP = {
     "English": "en",
     "Spanish": "es",
     "French": "fr",
     "German": "de",
     "Japanese": "ja",
-    "Chinese": "zh-cn",
+    "Chinese": "zh-CN",
     "Tagalog": "tl"
 }
 
@@ -25,7 +25,6 @@ def load_model():
     return whisper.load_model("tiny")
 
 model = load_model()
-translator = Translator()
 
 # -- Step 1: Input --
 st.subheader("1. Provide Audio")
@@ -48,37 +47,39 @@ target_lang_code = LANG_MAP[target_lang_name]
 if audio_source:
     if st.button("✨ Run Translation"):
         with st.spinner("Processing..."):
-            # A. Save audio to temp file
-            suffix = ".wav" if not hasattr(audio_source, 'name') else os.path.splitext(audio_source.name)[1]
-            with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                tmp.write(audio_source.getvalue())
-                tmp_path = tmp.name
+            try:
+                # Save audio to temp file
+                suffix = ".wav" if not hasattr(audio_source, 'name') else os.path.splitext(audio_source.name)[1]
+                with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    tmp.write(audio_source.getvalue())
+                    tmp_path = tmp.name
 
-            # B. Transcribe (Detect language and turn to text)
-            # We transcribe in 'original' language first
-            rec_result = model.transcribe(tmp_path)
-            original_text = rec_result["text"]
-            
-            # C. Translate Text
-            translation = translator.translate(original_text, dest=target_lang_code)
-            translated_text = translation.text
+                # A. Transcribe original audio
+                rec_result = model.transcribe(tmp_path)
+                original_text = rec_result["text"]
+                
+                # B. Translate Text (Using the more stable deep-translator)
+                translated_text = GoogleTranslator(source='auto', target=target_lang_code).translate(original_text)
 
-            # D. Generate Audio (Speech)
-            tts = gTTS(text=translated_text, lang=target_lang_code)
-            tts_path = "speech.mp3"
-            tts.save(tts_path)
+                # C. Generate Speech
+                tts = gTTS(text=translated_text, lang=target_lang_code)
+                tts_path = "speech.mp3"
+                tts.save(tts_path)
 
-            # -- Results UI --
-            st.success("Done!")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.info(f"**Original Text:**\n{original_text}")
-            with col2:
-                st.warning(f"**{target_lang_name} Translation:**\n{translated_text}")
-            
-            st.write("### 🔊 Listen to Translation:")
-            st.audio(tts_path)
+                # -- Results UI --
+                st.success("Done!")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.info(f"**Original Text:**\n{original_text}")
+                with col2:
+                    st.warning(f"**{target_lang_name} Translation:**\n{translated_text}")
+                
+                st.write("### 🔊 Listen to Translation:")
+                st.audio(tts_path)
 
-            # Cleanup
-            os.remove(tmp_path)
-            if os.path.exists(tts_path): os.remove(tts_path)
+                # Cleanup
+                os.remove(tmp_path)
+                if os.path.exists(tts_path): os.remove(tts_path)
+
+            except Exception as e:
+                st.error(f"Error: {e}")
