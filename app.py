@@ -1,45 +1,84 @@
 import streamlit as st
 import whisper
 import os
+from googletrans import Translator
+from gtts import gTTS
 from tempfile import NamedTemporaryFile
 
-# -- UI Configuration --
-st.set_page_config(page_title="Universal Audio Translator", page_icon="🌐")
-st.title("🌐 Audio to English Text")
-st.markdown("Upload audio in **any language** to get an English translation.")
+# -- App Config --
+st.set_page_config(page_title="Global Pocket Translator", page_icon="🌍")
+st.title("🌍 Global Pocket Translator")
 
-# -- Model Loading --
-# We use 'tiny' because it's the fastest and works best on free hosting
+# Language Map (Add more if you like!)
+LANG_MAP = {
+    "English": "en",
+    "Spanish": "es",
+    "French": "fr",
+    "German": "de",
+    "Japanese": "ja",
+    "Chinese": "zh-cn",
+    "Tagalog": "tl"
+}
+
 @st.cache_resource
 def load_model():
     return whisper.load_model("tiny")
 
 model = load_model()
+translator = Translator()
 
-# -- File Uploader --
-audio_file = st.file_uploader("Upload Audio", type=["wav", "mp3", "m4a", "ogg", "flac"])
+# -- Step 1: Input --
+st.subheader("1. Provide Audio")
+tab1, tab2 = st.tabs(["🎤 Live Record", "📁 Upload File"])
 
-if audio_file is not None:
-    st.audio(audio_file, format='audio/wav')
-    
-    if st.button("Translate to English"):
-        with st.spinner("Processing... this takes a moment on the free server."):
-            try:
-                # Save uploaded file to a temporary location
-                with NamedTemporaryFile(delete=False, suffix=os.path.splitext(audio_file.name)[1]) as tmp:
-                    tmp.write(audio_file.getvalue())
-                    tmp_path = tmp.name
+audio_source = None
+with tab1:
+    mic_audio = st.audio_input("Record speech")
+    if mic_audio: audio_source = mic_audio
+with tab2:
+    uploaded_audio = st.file_uploader("Upload audio file", type=["wav", "mp3", "m4a"])
+    if uploaded_audio: audio_source = uploaded_audio
 
-                # Perform Translation
-                result = model.transcribe(tmp_path, task="translate")
+# -- Step 2: Settings --
+st.subheader("2. Translation Settings")
+target_lang_name = st.selectbox("Translate into:", list(LANG_MAP.keys()))
+target_lang_code = LANG_MAP[target_lang_name]
 
-                # -- Display Result --
-                st.success("Translation Complete!")
-                st.subheader("English Transcription:")
-                st.write(result["text"])
-                
-                # Clean up the temp file
-                os.remove(tmp_path)
+# -- Step 3: Process --
+if audio_source:
+    if st.button("✨ Run Translation"):
+        with st.spinner("Processing..."):
+            # A. Save audio to temp file
+            suffix = ".wav" if not hasattr(audio_source, 'name') else os.path.splitext(audio_source.name)[1]
+            with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(audio_source.getvalue())
+                tmp_path = tmp.name
 
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
+            # B. Transcribe (Detect language and turn to text)
+            # We transcribe in 'original' language first
+            rec_result = model.transcribe(tmp_path)
+            original_text = rec_result["text"]
+            
+            # C. Translate Text
+            translation = translator.translate(original_text, dest=target_lang_code)
+            translated_text = translation.text
+
+            # D. Generate Audio (Speech)
+            tts = gTTS(text=translated_text, lang=target_lang_code)
+            tts_path = "speech.mp3"
+            tts.save(tts_path)
+
+            # -- Results UI --
+            st.success("Done!")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.info(f"**Original Text:**\n{original_text}")
+            with col2:
+                st.warning(f"**{target_lang_name} Translation:**\n{translated_text}")
+            
+            st.write("### 🔊 Listen to Translation:")
+            st.audio(tts_path)
+
+            # Cleanup
+            os.remove(tmp_path)
+            if os.path.exists(tts_path): os.remove(tts_path)
