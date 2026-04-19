@@ -51,7 +51,7 @@ with tab2:
     if up: audio_source = up
 
 # -- 2. SETTINGS --
-target_lang = st.selectbox("Translate to:", ["English", "Spanish", "Thai", "Vietnamese", "German", "Japanese", "Chinese", "Filipino"])
+target_lang = st.selectbox("Translate to:", ["English", "Spanish", "Thai", "Vietnamese", "German", "Japanese", "Chinese", "Tagalog"])
 lang_codes = {"English": "en", "Spanish": "es", "Thai": "th", "Vietnamese": "vi", "German": "de", "Japanese": "ja", "Chinese": "zh-cn", "Tagalog": "tl"}
 
 # -- 3. THE MAGIC --
