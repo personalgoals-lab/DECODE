@@ -24,7 +24,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🌍 Global Pocket Translator")
+st.title("🍊 ORANGE Pocket Translator")
 
 # Expanded Language Map
 LANG_MAP = {
