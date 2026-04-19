@@ -6,8 +6,8 @@ from gtts import gTTS
 from tempfile import NamedTemporaryFile
 
 # -- App Config --
-st.set_page_config(page_title="Global Pocket Translator", page_icon="🌍")
-st.title("🌍 Global Pocket Translator")
+st.set_page_config(page_title="ORANGE Pocket Translator", page_icon="🍊")
+st.title("🍊 ORANGE Pocket Translator")
 
 # Language Map for deep-translator
 LANG_MAP = {
