@@ -45,7 +45,7 @@ LANG_MAP = {
 
 @st.cache_resource
 def load_model():
-    return whisper.load_model("base")
+    return whisper.load_model("SMALL")
 
 model = load_model()
 
