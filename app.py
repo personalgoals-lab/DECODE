@@ -5,11 +5,28 @@ from deep_translator import GoogleTranslator
 from gtts import gTTS
 from tempfile import NamedTemporaryFile
 
-# -- App Config --
+# -- UI & CUSTOM CSS --
 st.set_page_config(page_title="ORANGE Pocket Translator", page_icon="🍊")
-st.title("🍊 ORANGE Pocket Translator")
 
-# Language Map for deep-translator
+# This is where we "inject" the design
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #f0f2f6; /* Light grey/blue background */
+    }
+    h1, h2, h3 {
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        color: #2e4053;
+    }
+    .stMarkdown {
+        font-family: 'Georgia', serif;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("🌍 Global Pocket Translator")
+
+# Expanded Language Map
 LANG_MAP = {
     "English": "en",
     "Spanish": "es",
@@ -17,16 +34,22 @@ LANG_MAP = {
     "German": "de",
     "Japanese": "ja",
     "Chinese": "zh-CN",
-    "Tagalog": "tl"
+    "Tagalog": "tl",
+    "Thai": "th",
+    "Vietnamese": "vi",
+    "Dutch": "nl",
+    "Icelandic": "is",
+    "Korean": "ko",
+    "Italian": "it"
 }
 
 @st.cache_resource
 def load_model():
-    return whisper.load_model("tiny")
+    return whisper.load_model("base")
 
 model = load_model()
 
-# -- Step 1: Input --
+# -- Input Section --
 st.subheader("1. Provide Audio")
 tab1, tab2 = st.tabs(["🎤 Live Record", "📁 Upload File"])
 
@@ -38,46 +61,35 @@ with tab2:
     uploaded_audio = st.file_uploader("Upload audio file", type=["wav", "mp3", "m4a"])
     if uploaded_audio: audio_source = uploaded_audio
 
-# -- Step 2: Settings --
-st.subheader("2. Translation Settings")
+# -- Settings --
+st.subheader("2. Settings")
 target_lang_name = st.selectbox("Translate into:", list(LANG_MAP.keys()))
 target_lang_code = LANG_MAP[target_lang_name]
 
-# -- Step 3: Process --
+# -- Process --
 if audio_source:
     if st.button("✨ Run Translation"):
         with st.spinner("Processing..."):
             try:
-                # Save audio to temp file
                 suffix = ".wav" if not hasattr(audio_source, 'name') else os.path.splitext(audio_source.name)[1]
                 with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                     tmp.write(audio_source.getvalue())
                     tmp_path = tmp.name
 
-                # A. Transcribe original audio
                 rec_result = model.transcribe(tmp_path)
                 original_text = rec_result["text"]
                 
-                # B. Translate Text (Using the more stable deep-translator)
                 translated_text = GoogleTranslator(source='auto', target=target_lang_code).translate(original_text)
 
-                # C. Generate Speech
                 tts = gTTS(text=translated_text, lang=target_lang_code)
                 tts_path = "speech.mp3"
                 tts.save(tts_path)
 
-                # -- Results UI --
                 st.success("Done!")
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.info(f"**Original Text:**\n{original_text}")
-                with col2:
-                    st.warning(f"**{target_lang_name} Translation:**\n{translated_text}")
-                
-                st.write("### 🔊 Listen to Translation:")
+                st.info(f"**Detected Original Text:**\n{original_text}")
+                st.warning(f"**{target_lang_name} Translation:**\n{translated_text}")
                 st.audio(tts_path)
 
-                # Cleanup
                 os.remove(tmp_path)
                 if os.path.exists(tts_path): os.remove(tts_path)
 
