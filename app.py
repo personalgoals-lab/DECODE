@@ -6,13 +6,13 @@ from tempfile import NamedTemporaryFile
 # -- UI Configuration --
 st.set_page_config(page_title="Universal Audio Translator", page_icon="🌐")
 st.title("🌐 Audio to English Text")
-st.markdown("Upload an audio file in **any language** and I'll translate it to English.")
+st.markdown("Upload audio in **any language** to get an English translation.")
 
 # -- Model Loading --
-# We use 'base' for speed. Use 'small' or 'medium' for better accuracy.
+# We use 'tiny' because it's the fastest and works best on free hosting
 @st.cache_resource
 def load_model():
-    return whisper.load_model("base")
+    return whisper.load_model("tiny")
 
 model = load_model()
 
@@ -23,7 +23,7 @@ if audio_file is not None:
     st.audio(audio_file, format='audio/wav')
     
     if st.button("Translate to English"):
-        with st.spinner("Processing audio... this may take a minute."):
+        with st.spinner("Processing... this takes a moment on the free server."):
             try:
                 # Save uploaded file to a temporary location
                 with NamedTemporaryFile(delete=False, suffix=os.path.splitext(audio_file.name)[1]) as tmp:
@@ -31,7 +31,6 @@ if audio_file is not None:
                     tmp_path = tmp.name
 
                 # Perform Translation
-                # task="translate" tells Whisper to output English regardless of input language
                 result = model.transcribe(tmp_path, task="translate")
 
                 # -- Display Result --
@@ -44,10 +43,3 @@ if audio_file is not None:
 
             except Exception as e:
                 st.error(f"An error occurred: {e}")
-
----
-
-### **How it works:**
-* **The Engine:** It uses OpenAI's Whisper (running locally on your machine).
-* **The Magic:** The `task="translate"` parameter is the secret sauce. It detects the source language automatically and maps it to English text.
-* **The Interface:** Streamlit creates a web-based dashboard so you don't have to live in the terminal.
