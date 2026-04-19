@@ -2,3 +2,6 @@ streamlit
 openai-whisper
 deep-translator
 gTTS
+pydub
+noisereduce
+numpy
